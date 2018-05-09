@@ -1,0 +1,3 @@
+class LogicalNotClause  extends Clause {
+
+}

@@ -1,0 +1,3 @@
+class MaximalValuesClause extends Clause {
+
+}

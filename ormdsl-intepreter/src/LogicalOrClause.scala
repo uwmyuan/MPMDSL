@@ -1,0 +1,3 @@
+class LogicalOrClause extends Clause {
+
+}

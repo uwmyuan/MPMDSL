@@ -1,0 +1,3 @@
+class MinimumActivityLevelClause extends Clause{
+
+}

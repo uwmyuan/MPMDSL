@@ -1,0 +1,3 @@
+class DisjunctionClause extends Clause {
+
+}

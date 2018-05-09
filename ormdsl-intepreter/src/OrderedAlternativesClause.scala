@@ -1,0 +1,3 @@
+class OrderedAlternativesClause extends Clause{
+
+}

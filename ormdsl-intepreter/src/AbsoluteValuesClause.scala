@@ -1,0 +1,3 @@
+class AbsoluteValuesClause extends Clause {
+
+}
