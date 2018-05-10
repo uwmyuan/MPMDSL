@@ -1,3 +1,0 @@
-class ProductValuesClause extends Clause{
-
-}

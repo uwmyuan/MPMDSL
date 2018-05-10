@@ -1,3 +1,0 @@
-class MinimalValuesClause  extends Clause {
-
-}

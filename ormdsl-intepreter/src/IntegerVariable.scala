@@ -1,3 +1,0 @@
-class IntegerVariable extends DecisionVariable {
-
-}

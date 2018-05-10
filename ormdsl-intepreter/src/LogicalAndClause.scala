@@ -1,3 +1,0 @@
-class LogicalAndClause extends Clause {
-
-}

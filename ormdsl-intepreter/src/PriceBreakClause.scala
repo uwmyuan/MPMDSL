@@ -1,3 +1,0 @@
-class PriceBreakClause extends Clause {
-
-}

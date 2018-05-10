@@ -1,3 +1,0 @@
-class BinaryVariable extends DecisionVariable{
-
-}

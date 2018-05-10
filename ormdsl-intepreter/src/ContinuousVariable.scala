@@ -1,3 +1,0 @@
-class ContinuousVariable extends DecisionVariable{
-
-}
