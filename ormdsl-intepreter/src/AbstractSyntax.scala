@@ -12,13 +12,21 @@ object Times extends Aop
 
 object Div extends Aop
 
-case class Vec(x: String)
+//vector
+trait Vec
+case class InputVariable(x: String) extends Vec
 
-case class Index(i: String)
+//decision variable
+trait DecisionVariable extends Var
 
-//TODO in operator
-//for example forall i in set I
-object in
+case class IntegerVariable(x: String) extends Vec with DecisionVariable
+case class ContinuousVariable(x: String) extends Vec with DecisionVariable
+case class BinaryVariable(x: String) extends Vec with DecisionVariable
+
+//index
+case class Dim(n: Int)
+
+case class Index(x: String, d: Dim)
 
 //expression
 trait Exp
@@ -28,13 +36,6 @@ case class Const(n: Double) extends Exp
 trait Var extends Exp
 
 case class InputVar(x: String) extends Var
-/**
-  *
-  * TODO how to abstract var vs decisionVar?
-  *
-  * @param x
-  */
-case class Variable(x: DecisionVariable) extends Exp
 
 case class VecElem(v: Vec, indices: List[Index]) extends Exp
 
@@ -43,22 +44,6 @@ case class Sum(idx: Index, e: Exp) extends Exp
 case class AExp(e1: Exp, op: Aop, e2: Exp) extends Exp
 
 case class PowExp(e: Exp, n: Double) extends Exp
-
-trait Collection
-
-case class DecisionVariableCollection(decisionVariable: DecisionVariable) extends Collection
-
-case class InputCollection(v: Var) extends Collection
-
-//decision variable
-trait DecisionVariable extends Var
-
-case class IntegerVariable(s:String) extends DecisionVariable
-
-case class ContinuousVariable(s:String) extends DecisionVariable
-
-case class BinaryVariable(s:String) extends DecisionVariable
-
 
 //clause
 trait Clause
@@ -95,6 +80,7 @@ case class MinimalValuesClause(exp: Exp, list: List[Exp]) extends Clause
   */
 case class MinimumActivityLevelClause(exp: Exp, list: List[Exp]) extends Clause
 
+//TODO
 case class OrderedAlternativesClause() extends Clause
 
 /**
@@ -271,17 +257,8 @@ class Equation(left: Exp, right: Exp, equal: Equality) {
   def equality(): Equality = equal
 }
 
-//qualifier
-trait Qualifier
-
-case class CollectionQualifier(e: Exp, collection: Collection) extends Qualifier
-
 //constraint
-trait Constraint
-
-case class QualifierConstraint(qu: Qualifier) extends Constraint
-
-case class EquationConstraint(eq: Equation, qu: Qualifier) extends Constraint
+case class Constraint(eq: Equation)
 
 //objective function
 case class ObjectiveFunction(m: MinOrMax, exp: Exp)
