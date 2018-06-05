@@ -1,2 +1,6 @@
 *.class
 *.log
+*.idea
+.project
+ormdsl-intepreter/ormdsl-intepreter.iml
+out/
