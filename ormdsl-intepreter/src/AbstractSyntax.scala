@@ -87,7 +87,7 @@ trait Vec extends AMPL with Tex with Exp {
   def apply(idx: Index*) = VecElem(this, idx.toList)
 }
 
-case class InputVariable(x: String) extends Vec with Var {
+case class InputVar(x: String) extends Vec with Var {
   override def toTex: String = x
 
   override def toAMPL: String = x
@@ -108,7 +108,7 @@ case class ContinuousVariable(x: String) extends Vec with DecisionVariable {
   override def toAMPL: String = x
 }
 
-case class BinaryVariable(x: String) extends Vec with DecisionVariable {
+case class BinaryVar(x: String) extends Vec with DecisionVariable {
   override def toTex: String = x
 
   override def toAMPL: String = x
@@ -182,26 +182,30 @@ case class Const(n: Double) extends Exp {
   }
 }
 
-trait Var extends Exp
-
-case class InputVar(x: String) extends Var {
-  override def toTex: String = x
-
-  override def toAMPL: String = x
+object Const {
+  implicit val orderingByNum: Ordering[Const] = Ordering.by(e => e.n)
 }
+
+trait Var extends Exp
 
 case class VecElem(v: Vec, indices: List[Index]) extends Exp {
   override def toTex: String = {
-    var c = ""
-    indices.foreach(c += _.toTex)
+    val c = StringBuilder.newBuilder
+    indices.foreach(v => c.append(v.toTex))
     return v.toTex + "_{" + c + "}"
   }
 
   override def toAMPL: String = {
-    var c = ""
-    indices.foreach(c += _.toAMPL + ",")
+    var c = StringBuilder.newBuilder
+    c.append(v.toAMPL)
+    c.append("[")
+    indices.foreach(u => {
+      c.append(u.toAMPL)
+      c.append(",")
+    })
     c = c.dropRight(1)
-    return v.toTex + "[" + c + "]"
+    c.append("]")
+    return c.toString()
   }
 }
 
@@ -225,11 +229,35 @@ case class PowExp(e: Exp, n: Double) extends Exp {
 
 //equation
 case class Equation(left: Exp, op: Cop, right: Exp) extends Tex with AMPL {
-  def toTex: String = "\\[" + left.toTex + op.toTex + right.toTex + "\\]"
+  def toConstraint: Constraint = {
+    //TODO if this constraint don't have a qualifier, free indices
+    val c = SimpleConstraint(Equation(left, op, right))
+    return c
+  }
+
+  def toTex: String = {
+    val c = StringBuilder.newBuilder
+    c.append("\\[")
+    c.append(left.toTex)
+    c.append(op.toTex)
+    c.append(right.toTex)
+    c.append("\\]")
+    return c.toString()
+  }
 
   def <=(y: Exp) = BinaryEquation(left, op, right, LessEq, y)
 
-  override def toAMPL: String = "s.t. " + left.toAMPL + op.toAMPL + right.toAMPL + ";"
+  def >=(y: Exp) = BinaryEquation(left, op, right, GreaterEq, y)
+
+  override def toAMPL: String = {
+    val c = StringBuilder.newBuilder
+    c.append("s.t. ")
+    c.append(left.toAMPL)
+    c.append(op.toAMPL)
+    c.append(right.toAMPL)
+    c.append(";")
+    return c.toString()
+  }
 }
 
 case class BinaryEquation(left: Exp, leftOp: Cop, middle: Exp, rightOp: Cop, right: Exp) extends {
@@ -255,5 +283,36 @@ case class MaxObjective(e: Exp) extends Objective {
   def toAMPL: String = "maximize obj: " + e.toAMPL + ";"
 }
 
+trait Converter {
+  def toFormulaIR: FormulaIR
+}
+
 //model formulation
-case class Formula(objective: Objective, constraints: List[Equation])
+case class Formula(objective: Objective, equations: List[Equation]) extends Tex with AMPL with Converter {
+  def toTex: String = {
+    val c = StringBuilder.newBuilder
+    c.append(objective.toTex)
+    c.append("\n")
+    equations.foreach(v => c.append(v.toTex + "\n"))
+    //merge the sums
+    return c.toString()
+  }
+
+  def toAMPL: String = {
+    val c = StringBuilder.newBuilder
+    c.append(objective.toAMPL)
+    c.append("\n")
+    equations.foreach(v => c.append(v.toAMPL + "\n"))
+    return c.toString().replace("}sum {", ", ")
+  }
+
+  override def toFormulaIR: FormulaIR = {
+    val declarations: List[Declaration] = Nil
+    //TODO get declarations from the equations and obj
+    val constraints: List[Constraint] = Nil
+    equations.foreach(v => {
+      constraints :+ v.toConstraint
+    })
+    return FormulaIR(declarations, objective, constraints)
+  }
+}
