@@ -24,14 +24,13 @@ object AST2AMPL {
   }
 
   def printAMPL(x: Formula): String = x match {
-    case Formula(objective: Objective, equations: List[Equation]) => {
+    case Formula(objective: Objective, equations: List[Equation]) =>
       StringBuilder.newBuilder
         .append(printAMPL(objective))
         .append("\n")
         .append(equations.fold("") { (v1, v2) => v1 + printAMPL(v2.asInstanceOf[Equation])+"\n" })
         .toString()
         .replace("}sum {", ", ")
-    }
   }
 
   def printAMPL(y: Index): String = y match {

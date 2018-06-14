@@ -27,10 +27,9 @@ case class Index(x: String, d: Dim)
 case class InputVar(x: String) extends Var with Vec
 
 //decision variable
-trait DecisionVariable extends Var with Vec
-case class IntegerVariable(x: String) extends DecisionVariable
-case class ContinuousVariable(x: String) extends DecisionVariable
-case class BinaryVar(x: String) extends  DecisionVariable
+case class IntegerVariable(x: String) extends Var with Vec
+case class ContinuousVariable(x: String) extends Var with Vec
+case class BinaryVar(x: String) extends  Var with Vec
 
 //expression
 trait Exp {
