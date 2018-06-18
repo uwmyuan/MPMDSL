@@ -57,21 +57,7 @@ object AST2AMPL {
   }
 
   def printAMPL(x: Exp): String = x match {
-    case DoubleNum(name, upperbound, lowerbound) =>
-      StringBuilder.newBuilder
-        .append("param ")
-        .append(name)
-        .append(if (lowerbound != null) " >=" + printAMPL(lowerbound))
-        .append(if (upperbound != null) " <=" + printAMPL(upperbound))
-        .toString
-    case IntegerNum(name, upperbound, lowerbound) =>
-      StringBuilder.newBuilder
-        .append("param ")
-        .append(name)
-        .append(if (lowerbound != null) " >=" + printAMPL(lowerbound))
-        .append(if (upperbound != null) " <=" + printAMPL(upperbound))
-        .append(" ,integer;")
-        .toString()
+
     case Const(n) =>
       if (n % 1 == 0) {
         n.toInt.toString
