@@ -25,12 +25,6 @@ object EqualIR extends CopIR
 
 //expression
 trait ExpIR {
-  def dvs: Map[String, DecisionVariable]
-
-  def order: Double
-
-  def ivs: Map[String, InputVariable]
-
   def *(e: ExpIR) = AExpIR(this, TimesIR, e)
 
   def +(e: ExpIR) = AExpIR(this, PlusIR, e)
@@ -54,54 +48,23 @@ trait ExpIR {
   def max = MaxObjectiveIR(this)
 }
 
-case class ConstIR(n: Double) extends ExpIR {
-  override def dvs: Map[String, DecisionVariable] = Map()
-
-  override def ivs: Map[String, InputVariable] = Map()
-
-  override def order: Double = 0
-}
+case class ConstIR(n: Double) extends ExpIR
 
 object ConstIR {
   implicit val orderingByNum: Ordering[ConstIR] = Ordering.by(e => e.n)
 }
 
-case class VectorIR(v: ExpIR, indices: List[Index]) extends ExpIR {
-  override def dvs: Map[String, DecisionVariable] = v.dvs
+case class VectorElementIR(v: VectorIR, indices: List[IndexIR]) extends ExpIR
 
-  override def ivs: Map[String, InputVariable] = v.ivs
-
-  override def order: Double = v.order
+trait VectorIR extends ExpIR {
+  def apply(idx: IndexIR*) = VectorElementIR(this, idx.toList)
 }
 
-case class SumIR(idx: IndexIR, e: VectorIR) extends ExpIR {
-  override def dvs: Map[String, DecisionVariable] = e.dvs
+case class SumIR(idx: IndexIR, e: ExpIR) extends ExpIR
 
-  override def ivs: Map[String, InputVariable] = e.ivs
+case class AExpIR(e1: ExpIR, op: AopIR, e2: ExpIR) extends ExpIR
 
-  override def order: Double = e.order
-}
-
-case class AExpIR(e1: ExpIR, op: AopIR, e2: ExpIR) extends ExpIR {
-  override def dvs: Map[String, DecisionVariable] = e1.dvs ++ e2.dvs
-
-  override def order: Double = op match {
-    case PlusIR => if (e1.order > e2.order) e1.order else e2.order
-    case MinusIR => if (e1.order > e2.order) e1.order else e2.order
-    case TimesIR => e1.order + e2.order
-    case DivIR => e1.order + 1 / e2.order
-  }
-
-  override def ivs: Map[String, InputIR] = e1.ivs ++ e2.ivs
-}
-
-case class PowExpIR(e: ExpIR, n: Double) extends ExpIR {
-  override def dvs: Map[String, DecisionVariable] = e.dvs
-
-  override def order: Double = e.order * n
-
-  override def ivs: Map[String, InputIR] = e.ivs
-}
+case class PowExpIR(e: ExpIR, n: Double) extends ExpIR
 
 trait Declaration
 
@@ -109,66 +72,35 @@ trait InputIR extends Declaration
 
 trait InputSet extends InputIR
 
-case class IndexIR(name: String, inputSet: InputSet)
+case class IndexIR(name: String, inputSet: InputSet) extends Declaration
 
 case class DoubleSet(name: String,
-                     lowerbound: ExpIR,
-                     upperbound: ExpIR) extends InputSet
+                     lowerbound: ExpIR=null,
+                     upperbound: ExpIR=null) extends InputSet with VectorIR
 
 case class IntegerSet(name: String,
-                      lowerbound: ExpIR,
-                      upperbound: ExpIR) extends InputSet
+                      lowerbound: ExpIR=null,
+                      upperbound: ExpIR=null) extends InputSet with VectorIR
 
-case class VecSet(name: String,
-                  lowerbound: ExpIR,
-                  upperbound: ExpIR,
-                  idx: List[IndexIR]) extends InputSet
-
-trait InputVariable extends ExpIR with InputIR {
-  override def dvs: Map[String, DecisionVariable] = Map()
-
-  override def order: Double = 0
-
-}
-
-case class VecNum(name: String,
-                  v: VectorIR) extends InputVariable {
-  override def ivs: Map[String, InputIR] = v.ivs
-}
+trait InputVariable extends InputIR with ExpIR
 
 case class DoubleNum(name: String,
-                     upperbound: ExpIR,
-                     lowerbound: ExpIR) extends InputVariable {
-  override def ivs: Map[String, InputIR] = Map(this.name -> this)
-}
+                     lowerbound: ExpIR=null,
+                     upperbound: ExpIR=null) extends InputVariable with DoubleType with VectorIR
 
 case class IntegerNum(name: String,
-                      upperbound: ExpIR,
-                      lowerbound: ExpIR) extends InputVariable {
-  override def ivs: Map[String, InputIR] = Map(this.name -> this)
-}
+                      upperbound: ExpIR=null,
+                      lowerbound: ExpIR=null) extends InputVariable with IntegerType with VectorIR
 
-trait DecisionVariable extends ExpIR with Declaration {
-  override def ivs: Map[String, InputIR] = Map()
-}
+trait DecisionVariable extends ExpIR with Declaration
 
 case class IntegerDecisionVariable(name: String,
-                                   lowerbound: ExpIR,
-                                   upperbound: ExpIR) extends DecisionVariable {
-  override def dvs = Map(this.name -> this)
-
-  override def order: Double = 1
-
-
-}
+                                   lowerbound: ExpIR=null,
+                                   upperbound: ExpIR=null) extends DecisionVariable with IntegerType with VectorIR
 
 case class DoubleDecisionVariable(name: String,
-                                  lowerbound: ExpIR,
-                                  upperbound: ExpIR) extends DecisionVariable {
-  override def dvs = Map(this.name -> this)
-
-  override def order: Double = 1
-}
+                                  lowerbound: ExpIR=null,
+                                  upperbound: ExpIR=null) extends DecisionVariable with DoubleType with VectorIR
 
 //equation
 case class EquationIR(left: ExpIR, op: CopIR, right: ExpIR) {
@@ -185,37 +117,35 @@ case class BinaryEquationIR(left: ExpIR, leftOp: CopIR, middle: ExpIR, rightOp: 
   }
 }
 
+trait ExpType
 
-//problem
-trait Problem {
-  def getDecisionVariables: Map[String, DecisionVariable]
+trait IntegerType extends ExpType
 
-  def getInputVariables: Map[String, InputIR]
-}
-
+trait DoubleType extends ExpType
 
 trait Qualifier
 
 case class SetQualifier(name: String,
                         index: IndexIR,
-                        upperbound: ExpIR,
-                        lowerbound: ExpIR) extends Qualifier
+                        lowerbound: ExpIR,
+                        upperbound: ExpIR) extends Qualifier
 
 case class CompoundQualifier(name: String,
-                             index: IndexIR,
                              list: List[SetQualifier]) extends Qualifier
-
 
 //constraint
 trait Constraint
 
-case class QualifiedConstraint(equation: EquationIR,
+case class QualifiedConstraint(name:String,
+                               equation: EquationIR,
                                qualifier: Qualifier) extends Constraint
 
-case class SimpleConstraint(equation: EquationIR) extends Constraint
+case class SimpleConstraint(name:String,
+                            equation: EquationIR) extends Constraint
 
-case class DecisionVariableConstraint(equation: EquationIR,
-                                      qualifier: Qualifier) extends Constraint
+case class DecisionVariableConstraint(name:String,
+                                      equation: EquationIR,
+                                      decisionVariable: DecisionVariable) extends Constraint
 
 //objective
 trait ObjectiveIR
@@ -229,13 +159,44 @@ trait Formulation
 
 case class FormulaIR(declarations: List[Declaration],
                      objective: ObjectiveIR,
-                     constraints: List[Constraint]) extends Formulation {
+                     constraints: List[Constraint]) extends Formulation
+
+object FormulaIR {
 
   /**
-    * get the constraints
+    * check if all decision variables are well defined
     *
     * @return
     */
-  def getConstraints: List[Constraint] = constraints
+  def checkDecisionVariables: Boolean = ???
+
+  /**
+    * check if all decision variables are related to the objective
+    *
+    * @return
+    */
+  def checkObjective: Boolean = ???
+
+  /**
+    * check if all constraints are related at least one decision variables
+    *
+    * @return
+    */
+  def checkConstraints: Boolean = ???
+
+
+  /**
+    * get all the decision variables
+    *
+    * @return
+    */
+  def getDecisionVariables: Map[String, DecisionVariable] = ???
+
+  /**
+    * get all the input variables
+    *
+    * @return
+    */
+  def getInputVariables: Map[String, InputIR] = ???
 
 }
