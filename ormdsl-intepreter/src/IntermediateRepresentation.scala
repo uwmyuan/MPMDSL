@@ -46,6 +46,21 @@ trait ExpIR {
   def min = MinObjectiveIR(this)
 
   def max = MaxObjectiveIR(this)
+
+  def resolve: Map[String, Declaration] = this match {
+    case ConstIR(n) => Map()
+    case VectorElementIR(v, indices) =>
+    case SumIR(idx, e) => e.resolve
+    case AExpIR(e1, op, e2) => e1.resolve ++ e2.resolve
+    case PowExpIR(e, n) => e.resolve
+    case IntegerDecisionVariable(name, lowerbound, upperbound) => Map(name -> this.asInstanceOf[IntegerDecisionVariable])
+    case DoubleDecisionVariable(name, lowerbound, upperbound) => Map(name -> this.asInstanceOf[DoubleDecisionVariable])
+    case DoubleNum(name, upperbound, lowerbound) => Map(name -> this.asInstanceOf[DoubleNum])
+    case IntegerNum(name, upperbound, lowerbound) => Map(name -> this.asInstanceOf[IntegerNum])
+    case IndexIR(name, inputSet) => Map(name -> this.asInstanceOf[IndexIR])
+    case _ =>
+  }
+
 }
 
 case class ConstIR(n: Double) extends ExpIR
@@ -75,32 +90,32 @@ trait InputSet extends InputIR
 case class IndexIR(name: String, inputSet: InputSet) extends Declaration
 
 case class DoubleSet(name: String,
-                     lowerbound: ExpIR=null,
-                     upperbound: ExpIR=null) extends InputSet with VectorIR
+                     lowerbound: ExpIR = null,
+                     upperbound: ExpIR = null) extends InputSet with VectorIR
 
 case class IntegerSet(name: String,
-                      lowerbound: ExpIR=null,
-                      upperbound: ExpIR=null) extends InputSet with VectorIR
+                      lowerbound: ExpIR = null,
+                      upperbound: ExpIR = null) extends InputSet with VectorIR
 
 trait InputVariable extends InputIR with ExpIR
 
 case class DoubleNum(name: String,
-                     lowerbound: ExpIR=null,
-                     upperbound: ExpIR=null) extends InputVariable with DoubleType with VectorIR
+                     lowerbound: ExpIR = null,
+                     upperbound: ExpIR = null) extends InputVariable with DoubleType with VectorIR
 
 case class IntegerNum(name: String,
-                      upperbound: ExpIR=null,
-                      lowerbound: ExpIR=null) extends InputVariable with IntegerType with VectorIR
+                      upperbound: ExpIR = null,
+                      lowerbound: ExpIR = null) extends InputVariable with IntegerType with VectorIR
 
 trait DecisionVariable extends ExpIR with Declaration
 
 case class IntegerDecisionVariable(name: String,
-                                   lowerbound: ExpIR=null,
-                                   upperbound: ExpIR=null) extends DecisionVariable with IntegerType with VectorIR
+                                   lowerbound: ExpIR = null,
+                                   upperbound: ExpIR = null) extends DecisionVariable with IntegerType with VectorIR
 
 case class DoubleDecisionVariable(name: String,
-                                  lowerbound: ExpIR=null,
-                                  upperbound: ExpIR=null) extends DecisionVariable with DoubleType with VectorIR
+                                  lowerbound: ExpIR = null,
+                                  upperbound: ExpIR = null) extends DecisionVariable with DoubleType with VectorIR
 
 //equation
 case class EquationIR(left: ExpIR, op: CopIR, right: ExpIR) {
@@ -136,14 +151,14 @@ case class CompoundQualifier(name: String,
 //constraint
 trait Constraint
 
-case class QualifiedConstraint(name:String,
+case class QualifiedConstraint(name: String,
                                equation: EquationIR,
                                qualifier: Qualifier) extends Constraint
 
-case class SimpleConstraint(name:String,
+case class SimpleConstraint(name: String,
                             equation: EquationIR) extends Constraint
 
-case class DecisionVariableConstraint(name:String,
+case class DecisionVariableConstraint(name: String,
                                       equation: EquationIR,
                                       decisionVariable: DecisionVariable) extends Constraint
 
