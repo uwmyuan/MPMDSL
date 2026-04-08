@@ -1,3 +1,5 @@
+package com.ormdsl.interpreter
+
 object Problem {
   def getDvs(exp: ExpIR): Map[String, DecisionVariable] = exp match {
     case ConstIR(n) => Map()
@@ -92,23 +94,23 @@ object Problem {
   def getOrder(equationIR: EquationIR): Double = math.max(getOrder(equationIR.left), getOrder(equationIR.right))
 
   def getDvs(constraint: Constraint): Map[String, DecisionVariable] = constraint match {
-    case QualifiedConstraint(equation, qualifier) => getDvs(equation)
-    case SimpleConstraint(equation) => getDvs(equation)
-    case DecisionVariableConstraint(equation, decisionVariable) => getDvs(equation)
+    case QualifiedConstraint(name, equation, qualifier) => getDvs(equation)
+    case SimpleConstraint(name, equation) => getDvs(equation)
+    case DecisionVariableConstraint(name, equation, decisionVariable) => getDvs(equation)
     case _ => Map()
   }
 
   def getIvs(constraint: Constraint): Map[String, InputIR] = constraint match {
-    case QualifiedConstraint(equation, qualifier) => getIvs(equation)
-    case SimpleConstraint(equation) => getIvs(equation)
-    case DecisionVariableConstraint(equation, decisionVariable) => getIvs(equation)
+    case QualifiedConstraint(name, equation, qualifier) => getIvs(equation)
+    case SimpleConstraint(name, equation) => getIvs(equation)
+    case DecisionVariableConstraint(name, equation, decisionVariable) => getIvs(equation)
     case _ => Map()
   }
 
   def getOrder(constraint: Constraint): Double = constraint match {
-    case QualifiedConstraint(equation, qualifier) => getOrder(equation)
-    case SimpleConstraint(equation) => getOrder(equation)
-    case DecisionVariableConstraint(equation, decisionVariable) => getOrder(equation)
+    case QualifiedConstraint(name, equation, qualifier) => getOrder(equation)
+    case SimpleConstraint(name, equation) => getOrder(equation)
+    case DecisionVariableConstraint(name, equation, decisionVariable) => getOrder(equation)
     case _ => 0
   }
 

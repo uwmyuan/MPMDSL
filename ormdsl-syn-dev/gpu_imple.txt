@@ -1,0 +1,23 @@
+topic:
+implementing runtime of native algorithms on gpu
+
+background: 
+a) For the customer side, the industry needs a solution with physical devices as deliverables. If there's such a product, we can deliver it to the power, oil transportation, seaport management, immediately.
+b) For the supplier sided, IT companies (IBM, MS,...) are interested in delivering such a product to the industrial market. If we have such a product, the suppliers such as INTEL, NVIDIA, BITMAIN may be looking forward to possible collaboration in this supply chain.
+c) However, there's no commercial solution for this pipeline until now.
+d) Fortunately, the mathematical theory is ready for the implementation.
+Please refer to the hyperlink for a long introduction to the industrial need. http://www.cbdio.com/BigData/2016-11/03/content_5367816.htm
+We may propose similar plans for electrical management with AI/IOT/BIGDATA techniques. I suppose Eaton would have some interests in this topic.  
+
+motivation: 
+a) The algorithms run 10 to 100 times faster on gpu than CPU, which has dramatical advantages in large-scale complex problems.
+b) A full technical chain of software and hardware shows competitiveness and uniqueness in the market.
+c) We have the sufficient technical background to investigate this methodology.
+
+Here is the dependency of basic algorithms for MILP: Branch&Price&Cut(MILP)<-Branch&Bround(MILP)<-Simplex(LP)
+Simplex for LP may be a good start.
+From optimization theory, we know the linear constraints form a polyhedron in the solution space and the optimal solution is on one of the vertex or edge or face. Simplex by Dantzig (1964) is basically transversing the vertices of the polyhedron to find the optimal solution or unbounded. It includes mostly matrix operations and not strongly polynomial.
+Please refer to Page 220, the attached chapter for a formal algorithm.
+Please refer to the hyperlink for a solid example: http://www.trentu.ca/academic/math/bz/341-l06.pdf .
+
+For the CPU implementation, please refer to GNU GLPK for open source implementation (our first ast can be solved with this library) and the repo https://github.com/ehsanmok/spark-lp for the cluster based implementation code of interior point method (not simplex) with spark. 

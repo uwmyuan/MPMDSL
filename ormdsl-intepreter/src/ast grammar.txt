@@ -1,0 +1,95 @@
+//The algebraic AST
+Aop::=Plus
+    |Minus
+    |Times
+    |Div
+    
+Cop::=Less
+    |Greater
+    |LessEq
+    |GreaterEq
+    |Equal
+    |NotEqual
+    
+Exp::= AExp 
+    |PowExp
+    |VecElem
+    |Vec
+    |Const
+    |Sum
+    
+AExp::=Exp Aop Exp
+
+PowExp::=Exp Double
+
+VecElem::=Vec List[Index]
+
+Index::=String Set
+
+Set::=Int String
+    |List(Index) String
+
+Vec::=InputVar
+    |IntegerVariable
+    |ContinuousVariable
+    |BinaryVar
+
+Const::=Double
+    
+Sum::=Index Exp
+
+FormulaStm::=ObjStm EquStms
+
+EquStms::=EquStms EquStm
+    |EquStm
+    
+EquStm::=EquStm Cop Exp
+    |Exp Cop Exp
+    
+ObjStm::=min Exp
+    |max Exp
+    
+//The algebraic IR TBD
+Aop::=PlusIR
+    |MinusIR
+    |TimesIR
+    |DivIR
+    
+Cop::=LessIR
+    |GreaterIR
+    |LessEqIR
+    |GreaterEqIR
+    |EqualIR
+    
+Exp::= AExpIR
+    |PowExpIR
+    |VecElem
+    |Vec
+    |ConstIR
+    |Sum
+    
+AExp::=Exp Aop Exp
+
+PowExp::=Exp Double
+
+VecElem::=Vec List[Index]
+
+Index::=String Dim
+
+Dim::=Int String
+
+Vec::=InputVar
+    |IntegerVariable
+    |ContinuousVariable
+    |BinaryVar
+
+Sum::=Index Exp 
+
+FormulaStms::=FormulaStms EquStms
+    |ObjStms EquStms
+    
+EquStms::=EquStms Cop Exp
+    |Exp Cop Exp
+    
+ObjStms::=min Exp
+    |max Exp

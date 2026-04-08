@@ -1,3 +1,5 @@
+package com.ormdsl.interpreter
+
 object AST2AMPL {
   /**
     * https://en.wikipedia.org/wiki/AMPL

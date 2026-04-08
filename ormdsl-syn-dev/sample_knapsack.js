@@ -1,75 +1,126 @@
-class expression{
-    val expr
+/**
+ * 背包问题 (Knapsack Problem) - 使用 ORMDSL JavaScript 语法糖
+ * 
+ * 问题描述：
+ * - 给定 n 个物品，每个物品有重量 w 和价值 v
+ * - 背包容量为 W
+ * - 选择物品使总价值最大，同时总重量不超过容量
+ * 
+ * 数学模型：
+ *   maximize sum(i in items) { v_i * x_i }
+ *   s.t.   sum(i in items) { w_i * x_i } <= W
+ *          x_i in {0, 1}
+ */
 
-    val value
+import { 
+    binary, integer, continuous, 
+    minimize, maximize, constraint,
+    sum, set, union, intersection, difference,
+    solve, Problem, Exp, Const, Times, Plus, Comparison
+} from './sugar.js';
 
-    ...
+// ============================================================
+// 1. 数据输入
+// ============================================================
 
+// 物品数量
+const n = 5;
+
+// 物品重量
+const weights = [2, 3, 4, 5, 6];
+
+// 物品价值
+const values = [3, 4, 5, 6, 7];
+
+// 背包容量
+const W = 10;
+
+// ============================================================
+// 2. 变量声明
+// ============================================================
+
+// 创建二进制决策变量 x[i] - 是否选择物品 i
+const x = [];
+for (let i = 0; i < n; i++) {
+    x[i] = binary(`x_${i}`);
 }
 
+// ============================================================
+// 3. 问题定义
+// ============================================================
 
-I coded the packing problems as follows.
+// 目标函数：最大化总价值
+const totalValue = sum('i', [0, 1, 2, 3, 4], values.reduce((acc, v, i) => {
+    return acc.plus(v.times(x[i]));
+}, new Const(0)));
 
+// 简化写法
+const objective = values.reduce((acc, v, i) => {
+    return acc.plus(v.times(x[i]));
+}, new Const(0));
 
-//1-d discrete packing
-class item{
-    val weight
-    val value
-    val selected<<-Boolean
-}
-//knapsack capacity
-val W
+// 创建最大化问题
+const problem = maximize(objective);
 
-//number of items
-val n
+// 约束：总重量不超过容量
+const weightConstraint = weights.reduce((acc, w, i) => {
+    return acc.plus(w.times(x[i]));
+}, new Const(0));
 
-val items = (0 until n).map(_=>new item).toSet
+problem.add(constraint('capacity', weightConstraint.le(W)));
 
-//knapsack constraint
-//if i.selected then i.weight else 0
-sum(items.map(i => i.selected*i.weight)) <= W )
+// ============================================================
+// 4. 求解
+// ============================================================
 
-val objective = sum(items.map(i => i.selected*i.value))
+console.log('背包问题求解');
+console.log('='.repeat(40));
+console.log(`物品数量: ${n}`);
+console.log(`容量: ${W}`);
+console.log('物品数据:');
+weights.forEach((w, i) => {
+    console.log(`  物品${i}: 重量=${w}, 价值=${values[i]}`);
+});
 
-//3d discrete packing problem---------------------
-class Item{
-    val weight
-    val value
-    val selected<<-Boolean
-    val length
-    val height
-    val x
-    val y
-}
+console.log('\n问题模型:');
+console.log(`  maximize ${objective}`);
+console.log(`  s.t.     sum(w[i] * x[i]) <= ${W}`);
+console.log(`            x[i] in {0, 1}`);
 
-val n
+console.log('\n求解中...');
+const result = solve(problem);
 
-val items = (0 until n).map(_=>new item).toSet
+console.log('\n求解结果:');
+console.log(result.summary);
 
-val W
+// 输出选中的物品
+console.log('\n选中的物品:');
+result.values && Object.entries(result.values).forEach(([name, val]) => {
+    if (name.startsWith('x_') && val > 0.5) {
+        const idx = parseInt(name.split('_')[1]);
+        console.log(`  物品${idx}: 重量=${weights[idx]}, 价值=${values[idx]}`);
+    }
+});
 
-//knapsack length
-val L
+// ============================================================
+// 简化版本（纯语法糖风格）
+// ============================================================
 
-//knapsack height
-val H
+console.log('\n' + '='.repeat(40));
+console.log('简化版本演示');
+console.log('='.repeat(40));
 
-assert(sum(items.map(i => i.selected*i.weight)) <= W )
+// 使用集合
+const items = set('items', 0, n - 1);
+const weight = (i) => weights[i];
+const value = (i) => values[i];
 
-//all items should be in the rectangle L*H
-items.map(i=>{
-    assert(0<=i.x<=L-i.length)
-    assert(0<=i.y<=H-i.height)
-})
+// 目标函数
+const obj2 = minimize ? maximize(sum('i', items, value('i').times(x['i']))) : null;
 
-//no overlapping, two distinct elements i,j in items
-items.filter(i,j=>i.selected & j.selected).map(i,j=>{
-    assert(i.x+i.length<=j.x or j.x+j.length<i.x)
-    assert(i.y+i.height<=j.y or j.y+j.height<i.y)
-})
+// 约束
+const cap2 = sum('i', items, weight('i').times(x['i'])).le(W);
 
-val objective = sum(items.map(i => i.selected*i.value))
-
-// cutting stock problem-----------------------------
-// eliminating selected and add L as a decision variable
-// change obj fn to min L
+console.log('使用集合的简洁写法:');
+console.log('  objective = maximize sum(i in items, value(i) * x[i])');
+console.log('  constraint = sum(i in items, weight(i) * x[i]) <= W');

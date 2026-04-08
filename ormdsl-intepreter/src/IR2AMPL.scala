@@ -1,3 +1,5 @@
+package com.ormdsl.interpreter
+
 object IR2AMPL {
   def printAMPL(x: AopIR): String = x match {
     case PlusIR => "+"

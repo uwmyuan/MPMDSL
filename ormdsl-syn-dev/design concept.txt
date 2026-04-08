@@ -1,0 +1,37 @@
+objective:
+It has intuitive concepts corresponding to domain knowledge.
+It takes limited efforts to learn the meaning of the code.
+It's declarative and describes the characteristics of the domain problem.
+It's enough to formulate (some subsets of) problems with a minimal set of operators.
+It has a smooth learning curve.
+It's static for checking the correction with a type system.
+
+structure:
+DSL source code--parser-->formulation generator AST--semantic analysis-->generator IR--> symbolic reformulation on IR --> final IR --pattern matching--> algebraic IR-->algebraic AST--string builder->algebraic programming source code
+
+design idea:
+It creates algebraic expressions with a computing grammar.
+Its syntax may like scala or python but its semantic is abstractly composing algebraic AST.
+It includes arithmetic operators (+,-,*), comparative operators (>,<,==), element operator (.), and set operators (SUBSET, UNION, CROSS).
+The element operator is to create and access the attributes of elements of the set.
+If the elements of sets have values, then they are used as numbers, else they're decision variables.
+It uses SET and number(float) as the basic object.
+It includes the following built-in predicates: 
+SUBSET to create a subset of a set.
+CROSS to create to a new set with Cartesian product of keys in the two sets.
+MAP to create a matching between elements in two sets, and may be one to one, one to many, many to one, many to many.
+FOLD to aggregate the set to a symbolic expression.
+MIN to indicate the objective function.
+...
+
+example:
+
+case class Customer(demand:float) extends DiscreteSet
+case class Warehouse() extends DiscreteSet
+customers = SET(Customer)
+potentional_warehouses = SET(Warehouse)
+established_warehouse = SUBSET(potentional_warehouses)
+allocation = MAP customers TO warehouse MANY_TO_ONE EXHAUSTIVELY
+size(established_warehouse) == number_of_warehouses
+travel = customers CROSS warehouses 
+MIN customers.FOLD(+,c->c.demand*travel[c,allocation(c)])

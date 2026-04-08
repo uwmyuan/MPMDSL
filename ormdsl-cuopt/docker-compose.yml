@@ -1,0 +1,64 @@
+# ORMDSL-CUOPT Docker Compose 配置
+# 用于 GPU 加速优化求解器单元测试
+
+version: '3.8'
+
+services:
+  # cuOpt GPU 测试容器
+  cuopt-gpu-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ormdsl-cuopt:gpu-test
+    container_name: ormdsl-cuopt-test
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # 源代码挂载（开发模式）
+      - ./:/workspace:rw
+      # 测试结果输出
+      - ./tests/results:/workspace/tests/results:rw
+    working_dir: /workspace
+    command: >
+      pytest -v --tb=short
+      tests/docker_test_gpu.py
+      --report-md=tests/results/TEST_REPORT.md
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # cuOpt GPU 基准测试容器
+  cuopt-gpu-benchmark:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ormdsl-cuopt:gpu-test
+    container_name: ormdsl-cuopt-benchmark
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./:/workspace:rw
+      - ./tests/results:/workspace/tests/results:rw
+    working_dir: /workspace
+    command: >
+      python -m pytest -v --tb=short
+      tests/docker_test_gpu.py
+      --benchmark
+      --report-md=tests/results/BENCHMARK_REPORT.md
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

@@ -1,3 +1,5 @@
+package com.ormdsl.interpreter
+
 object ImplictConst {
   implicit def int2Const(i: Int) = Const(i)
   implicit def int2ConstIR(i: Int) = ConstIR(i)

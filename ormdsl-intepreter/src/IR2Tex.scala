@@ -1,4 +1,6 @@
 
+package com.ormdsl.interpreter
+
 object IR2Tex {
 
   def printTex(x: AopIR): String = x match {
