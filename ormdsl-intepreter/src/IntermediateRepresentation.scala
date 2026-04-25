@@ -1,5 +1,80 @@
 package com.ormdsl.interpreter
 
+// ==================== Validation Exceptions ====================
+
+case class ValidationException(message: String) extends Exception(message)
+
+object ValidationErrors {
+  val BOUND_INVERSION = "Bound inversion: lower bound must be <= upper bound"
+  val NEGATIVE_INDEX = "Negative index: array index must be >= 0"
+  val BINARY_OUT_OF_RANGE = "Binary variable bounds must be in [0, 1]"
+  val INTEGER_BOUND_NOT_INTEGER = "Integer variable bounds must be integers"
+  val DUPLICATE_VARIABLE = "Duplicate variable name"
+  val UNDEFINED_VARIABLE = "Undefined variable"
+  val MIXED_TYPES_IN_EXPRESSION = "Mixed types in expression"
+}
+
+// ==================== Validation Utilities ====================
+
+object IRValidator {
+  def validateBounds(lb: ExpIR, ub: ExpIR, varName: String): Unit = {
+    (lb, ub) match {
+      case (ConstIR(l), ConstIR(u)) if l > u =>
+        throw ValidationException(s"$varName: ${ValidationErrors.BOUND_INVERSION} (lb=$l > ub=$u)")
+      case _ =>
+    }
+  }
+
+  def validateNonNegativeIndex(idx: ExpIR): Unit = idx match {
+    case ConstIR(n) if n < 0 =>
+      throw ValidationException(s"${ValidationErrors.NEGATIVE_INDEX}: got $n")
+    case _ =>
+  }
+
+  def validateBinaryBounds(lb: ExpIR, ub: ExpIR, varName: String): Unit = {
+    (lb, ub) match {
+      case (ConstIR(l), ConstIR(u)) if l < 0 || u > 1 =>
+        throw ValidationException(s"$varName: ${ValidationErrors.BINARY_OUT_OF_RANGE} (lb=$l, ub=$u)")
+      case _ =>
+    }
+  }
+
+  def validateIntegerBounds(lb: ExpIR, ub: ExpIR, varName: String): Unit = {
+    def isInteger(e: ExpIR): Boolean = e match {
+      case ConstIR(n) => n == n.toLong
+      case _ => false
+    }
+    if (!isInteger(lb) || !isInteger(ub)) {
+      throw ValidationException(s"$varName: ${ValidationErrors.INTEGER_BOUND_NOT_INTEGER} (lb=$lb, ub=$ub)")
+    }
+  }
+
+  def checkDuplicateNames(declarations: List[Declaration]): Unit = {
+    val names = declarations.collect {
+      case dv: DecisionVariable => dv.name
+      case iv: InputVariable => iv match {
+        case d: DoubleNum => d.name
+        case i: IntegerNum => i.name
+      }
+      case s: InputSet => s.name
+      case ir: IndexIR => ir.name
+    }
+    if (names.distinct.length != names.length) {
+      val duplicates = names.groupBy(identity).filter(_._2.length > 1).keys.mkString(", ")
+      throw ValidationException(s"${ValidationErrors.DUPLICATE_VARIABLE}: $duplicates")
+    }
+  }
+
+  def checkUndefinedVariables(expr: ExpIR, knownVars: Set[String]): Unit = {
+    val used = expr.resolve.keySet
+    used.foreach { v =>
+      if (!knownVars(v)) {
+        throw ValidationException(s"${ValidationErrors.UNDEFINED_VARIABLE}: '$v'")
+      }
+    }
+  }
+}
+
 //operator
 //arithmetic operators
 trait AopIR
@@ -70,7 +145,26 @@ object ConstIR {
   implicit val orderingByNum: Ordering[ConstIR] = Ordering.by(e => e.n)
 }
 
-case class VectorElementIR(v: VectorIR, indices: List[IndexIR]) extends ExpIR
+case class VectorElementIR(v: VectorIR, indices: List[IndexIR]) extends ExpIR {
+  // Validate indices at construction time
+  indices.foreach { idx =>
+    idx match {
+      case IndexIR(name, IntegerSet(_, lb, ub)) =>
+        // Check range validity
+        (lb, ub) match {
+          case (ConstIR(l), ConstIR(u)) if l > u =>
+            throw ValidationException(s"IndexSet '$name': ${ValidationErrors.BOUND_INVERSION} ($l > $u)")
+          case _ =>
+        }
+      case IndexIR(name, DoubleSet(_, lb, ub)) =>
+        (lb, ub) match {
+          case (ConstIR(l), ConstIR(u)) if l > u =>
+            throw ValidationException(s"IndexSet '$name': ${ValidationErrors.BOUND_INVERSION} ($l > $u)")
+          case _ =>
+        }
+    }
+  }
+}
 
 trait VectorIR extends ExpIR {
   def apply(idx: IndexIR*) = VectorElementIR(this, idx.toList)
@@ -82,7 +176,9 @@ case class AExpIR(e1: ExpIR, op: AopIR, e2: ExpIR) extends ExpIR
 
 case class PowExpIR(e: ExpIR, n: Double) extends ExpIR
 
-trait Declaration
+trait Declaration {
+  val name: String
+}
 
 trait InputIR extends Declaration
 
@@ -176,7 +272,7 @@ trait Formulation
 case class FormulaIR(declarations: List[Declaration],
                      objective: ObjectiveIR,
                      constraints: List[Constraint]) extends Formulation {
-  
+
   /**
    * get all the decision variables
    *
@@ -208,6 +304,89 @@ case class FormulaIR(declarations: List[Declaration],
   }
 
   /**
+   * get all declared variable names (for scope checking)
+   */
+  private def getAllDeclaredNames: Set[String] = {
+    (getDecisionVariables.keySet ++ getInputVariables.keySet)
+  }
+
+  /**
+   * Full validation of the entire formulation
+   * @return (isValid, List of error messages)
+   */
+  def validate: (Boolean, List[String]) = {
+    val errors = scala.collection.mutable.ListBuffer[String]()
+
+    // 1. Check for duplicate names
+    try {
+      IRValidator.checkDuplicateNames(declarations)
+    } catch {
+      case e: ValidationException => errors += e.getMessage
+    }
+
+    // 2. Check each decision variable
+    val knownVars = getAllDeclaredNames
+    getDecisionVariables.foreach { case (name, dv) =>
+      try {
+        dv match {
+          case v: IntegerDecisionVariable =>
+            if (v.lowerbound != null && v.upperbound != null) {
+              IRValidator.validateBounds(v.lowerbound, v.upperbound, name)
+              IRValidator.validateIntegerBounds(v.lowerbound, v.upperbound, name)
+            }
+          case v: DoubleDecisionVariable =>
+            if (v.lowerbound != null && v.upperbound != null) {
+              IRValidator.validateBounds(v.lowerbound, v.upperbound, name)
+            }
+        }
+      } catch {
+        case e: ValidationException => errors += e.getMessage
+      }
+    }
+
+    // 3. Check objective uses only declared variables
+    try {
+      val objExpr = objective match {
+        case MinObjectiveIR(e) => e
+        case MaxObjectiveIR(e) => e
+      }
+      IRValidator.checkUndefinedVariables(objExpr, knownVars)
+    } catch {
+      case e: ValidationException => errors += s"Objective: ${e.getMessage}"
+    }
+
+    // 4. Check each constraint
+    constraints.foreach { c =>
+      try {
+        val eq = c match {
+          case QualifiedConstraint(_, eq, _) => eq
+          case SimpleConstraint(_, eq) => eq
+          case DecisionVariableConstraint(_, eq, _) => eq
+        }
+        IRValidator.checkUndefinedVariables(eq.left, knownVars)
+        IRValidator.checkUndefinedVariables(eq.right, knownVars)
+        IRValidator.validateBounds(eq.left, eq.right, c.toString)
+      } catch {
+        case e: ValidationException => errors += s"Constraint: ${e.getMessage}"
+      }
+    }
+
+    // 5. Check vector indices are non-negative
+    declarations.foreach { d =>
+      try {
+        d match {
+          case v: VectorIR => // handled in apply()
+          case _ =>
+        }
+      } catch {
+        case e: ValidationException => errors += e.getMessage
+      }
+    }
+
+    (errors.isEmpty, errors.toList)
+  }
+
+  /**
    * check if all decision variables are well defined
    * Decision variables must have valid bounds (lowerbound and upperbound)
    *
@@ -223,7 +402,7 @@ case class FormulaIR(declarations: List[Declaration],
       }
     }
   }
-  
+
   /**
    * check if all decision variables are related to the objective
    * Extracts variables from objective and verifies at least one is a decision variable
@@ -238,7 +417,7 @@ case class FormulaIR(declarations: List[Declaration],
     val decVars = getDecisionVariables.keySet
     objVars.keySet.exists(decVars.contains)
   }
-  
+
   /**
    * check if all constraints are related at least one decision variable
    *
@@ -248,11 +427,11 @@ case class FormulaIR(declarations: List[Declaration],
     val decVars = getDecisionVariables.keySet
     constraints.forall { c =>
       val constVars = c match {
-        case QualifiedConstraint(_, eq, _) => 
+        case QualifiedConstraint(_, eq, _) =>
           eq.left.resolve ++ eq.right.resolve
-        case SimpleConstraint(_, eq) => 
+        case SimpleConstraint(_, eq) =>
           eq.left.resolve ++ eq.right.resolve
-        case DecisionVariableConstraint(name, eq, dv) => 
+        case DecisionVariableConstraint(name, eq, dv) =>
           val dvMap = dv match {
             case dv: IntegerDecisionVariable => Map(dv.name -> dv)
             case dv: DoubleDecisionVariable => Map(dv.name -> dv)

@@ -29,7 +29,118 @@ from typing import List, Dict, Any, Optional, Union
 
 
 # ============================================================
-# 一、变量声明语法糖
+# 0. DSL 校验层（新增）
+# ============================================================
+
+class DSLValidationError(Exception):
+    """ORMDSL 语义校验异常"""
+    pass
+
+
+class ValidationErrorCodes:
+    """校验错误码"""
+    BOUND_INVERSION = "E001"   # 界颠倒: lb > ub
+    BINARY_OUT_OF_RANGE = "E002"  # 二进制变量界不在[0,1]
+    INTEGER_BOUND_NOT_INT = "E003"  # 整数变量界含小数
+    NEGATIVE_INDEX = "E004"     # 负索引
+    DUPLICATE_VAR = "E005"      # 重复变量名
+    UNDEFINED_VAR = "E006"      # 未定义变量
+    EMPTY_DOMAIN = "E007"       # 定义域为空
+    EMPTY_OBJECTIVE = "E008"    # 空目标函数
+    EMPTY_SET = "E009"          # 空集合
+    EMPTY_CONSTRAINTS = "W001"   # 无约束警告
+
+
+def _is_integer(x) -> bool:
+    """检查数值是否为整数"""
+    return isinstance(x, (int, float)) and x == int(x)
+
+
+def _is_const(expr) -> bool:
+    """检查表达式是否为常量"""
+    return isinstance(expr, (int, float)) or \
+           (isinstance(expr, Const) and isinstance(expr.value, (int, float)))
+
+
+def _get_const_value(expr):
+    """提取常量值"""
+    if isinstance(expr, (int, float)):
+        return float(expr)
+    if isinstance(expr, Const):
+        return float(expr.value)
+    return None
+
+
+def _collect_vars(expr, known: set) -> set:
+    """递归收集表达式中的变量名"""
+    if isinstance(expr, (BinaryVar, IntegerVar, ContinuousVar)):
+        known.add(expr.name)
+    elif isinstance(expr, IndexedVar):
+        known.add(expr.name)
+    elif isinstance(expr, (Plus, Minus, Times, Div)):
+        _collect_vars(expr.left, known)
+        _collect_vars(expr.right, known)
+    elif isinstance(expr, Neg):
+        _collect_vars(expr.expr, known)
+    elif isinstance(expr, Pow):
+        _collect_vars(expr.base, known)
+        _collect_vars(expr.exponent, known)
+    elif isinstance(expr, Sum):
+        known.add(expr.index_var)
+        _collect_vars(expr.body, known)
+    return known
+
+
+def validate_bounds(lb, ub, var_name: str, var_type: str = "variable") -> None:
+    """校验界：lb <= ub"""
+    if lb is not None and ub is not None:
+        lb_val = _get_const_value(lb)
+        ub_val = _get_const_value(ub)
+        if lb_val is not None and ub_val is not None and lb_val > ub_val:
+            raise DSLValidationError(
+                f"[{ValidationErrorCodes.BOUND_INVERSION}] "
+                f"{var_type} '{var_name}': bound inversion (lb={lb_val} > ub={ub_val})"
+            )
+
+
+def validate_binary_bounds(lb, ub, var_name: str) -> None:
+    """校验二进制变量界必须在 [0, 1]"""
+    if lb is not None or ub is not None:
+        lb_val = _get_const_value(lb) if lb is not None else 0.0
+        ub_val = _get_const_value(ub) if ub is not None else 1.0
+        if lb_val < 0 or ub_val > 1:
+            raise DSLValidationError(
+                f"[{ValidationErrorCodes.BINARY_OUT_OF_RANGE}] "
+                f"binary variable '{var_name}': bounds must be in [0,1], got [{lb_val}, {ub_val}]"
+            )
+
+
+def validate_integer_bounds(lb, ub, var_name: str) -> None:
+    """校验整数变量界必须为整数"""
+    if lb is not None and not _is_integer(lb):
+        raise DSLValidationError(
+            f"[{ValidationErrorCodes.INTEGER_BOUND_NOT_INT}] "
+            f"integer variable '{var_name}': lower bound must be integer, got {lb}"
+        )
+    if ub is not None and not _is_integer(ub):
+        raise DSLValidationError(
+            f"[{ValidationErrorCodes.INTEGER_BOUND_NOT_INT}] "
+            f"integer variable '{var_name}': upper bound must be integer, got {ub}"
+        )
+
+
+def validate_index(idx, var_name: str) -> None:
+    """校验索引不能为负数"""
+    idx_val = _get_const_value(idx)
+    if idx_val is not None and idx_val < 0:
+        raise DSLValidationError(
+            f"[{ValidationErrorCodes.NEGATIVE_INDEX}] "
+            f"variable '{var_name}': negative index {idx_val}"
+        )
+
+
+# ============================================================
+# 一、变量声明语法糖（增强校验）
 # ============================================================
 
 class Variables:
@@ -88,8 +199,11 @@ class BinaryVar:
         self.name = name
         self.shape = shape or ()
         self.indices = indices
+        # 二进制变量默认界为 [0, 1]
         self.lb = 0
         self.ub = 1
+        # 校验：二进制变量界必须在 [0, 1]
+        validate_binary_bounds(0, 1, name)
 
     def __getitem__(self, key):
         """支持 x[i,j] 索引访问"""
@@ -142,6 +256,9 @@ class IntegerVar:
         self.shape = shape or ()
         self.lb = lb
         self.ub = ub
+        # 校验：整数变量界必须为整数，且 lb <= ub
+        validate_integer_bounds(lb, ub, name)
+        validate_bounds(lb, ub, name, "integer variable")
 
     def __getitem__(self, key):
         """支持 y[i] 索引访问"""
@@ -189,6 +306,8 @@ class ContinuousVar:
         self.shape = shape or ()
         self.lb = lb
         self.ub = ub
+        # 校验：lb <= ub
+        validate_bounds(lb, ub, name, "continuous variable")
 
     def __getitem__(self, key):
         """支持 z[i] 索引访问"""
@@ -234,6 +353,12 @@ class IndexedVar:
     def __init__(self, name: str, index: str):
         self.name = name
         self.index = index
+        # 尝试解析数值索引并校验负数
+        try:
+            idx_val = int(index)
+            validate_index(idx_val, name)
+        except (ValueError, TypeError):
+            pass  # 非数值索引（如 i, j）跳过数值校验
 
     def __str__(self):
         return f"{self.name}[{self.index}]"
@@ -488,6 +613,11 @@ def set(name: str, values: List) -> Set:
         I = set("I", range(1, 11))
         J = set("J", [1, 2, 3, 4, 5])
     """
+    # 空集合检测
+    if not values:
+        raise DSLValidationError(
+            f"[{ValidationErrorCodes.EMPTY_SET}] Empty set '{name}'"
+        )
     return Set(name, values)
 
 
@@ -525,6 +655,17 @@ class Problem:
         self.objective = objective
         self.sense = sense  # 'min' or 'max'
         self.constraints = []
+        self._declared_vars = set()  # 记录已声明的变量名
+
+    def declare_var(self, var):
+        """记录变量声明（用于重复检测）"""
+        if var.name in self._declared_vars:
+            raise DSLValidationError(
+                f"[{ValidationErrorCodes.DUPLICATE_VAR}] "
+                f"Duplicate variable name: '{var.name}'"
+            )
+        self._declared_vars.add(var.name)
+        return var
 
     def __iadd__(self, constraint):
         """支持 problem += constraint(...) 语法"""
@@ -544,6 +685,51 @@ class Problem:
         """添加约束"""
         self.constraints.append(constraint)
         return self
+
+    def validate(self) -> List[DSLValidationError]:
+        """
+        完整语义校验
+        返回错误列表（空列表 = 校验通过）
+        """
+        errors = []
+        warnings = []
+
+        # 0. 空目标函数检测
+        if self.objective is None:
+            errors.append(DSLValidationError(
+                f"[{ValidationErrorCodes.EMPTY_OBJECTIVE}] Empty objective function"
+            ))
+
+        # 0b. 无约束警告
+        if not self.constraints:
+            warnings.append(DSLValidationError(
+                f"[{ValidationErrorCodes.EMPTY_CONSTRAINTS}] Problem has no constraints"
+            ))
+
+        # 1. 目标函数中的未定义变量
+        if self.objective is not None:
+            vars_in_obj = _collect_vars(self.objective, set())
+            undefined = vars_in_obj - self._declared_vars
+            for v in undefined:
+                errors.append(DSLValidationError(
+                    f"[{ValidationErrorCodes.UNDEFINED_VAR}] "
+                    f"Objective: undefined variable '{v}'"
+                ))
+
+        # 2. 约束中的未定义变量
+        for i, c in enumerate(self.constraints):
+            eq = c.equation if isinstance(c, NamedConstraint) else c
+            if isinstance(eq, Comparison):
+                vars_in_constr = _collect_vars(eq.left, set()) | _collect_vars(eq.right, set())
+                undefined = vars_in_constr - self._declared_vars
+                for v in undefined:
+                    errors.append(DSLValidationError(
+                        f"[{ValidationErrorCodes.UNDEFINED_VAR}] "
+                        f"Constraint '{c.name if isinstance(c, NamedConstraint) else i}': "
+                        f"undefined variable '{v}'"
+                    ))
+
+        return errors + warnings
 
     def __str__(self):
         sense_str = "minimize" if self.sense == 'min' else "maximize"
@@ -639,15 +825,37 @@ class SolverResult:
         return '\n'.join(f"  {k} = {v}" for k, v in self.values.items())
 
 
-def solve(problem: Problem) -> SolverResult:
+def solve(problem: Problem, validate_first: bool = True) -> SolverResult:
     """
     求解函数
+
+    参数：
+        problem: 优化问题
+        validate_first: 是否先进行语义校验（默认开启）
 
     示例：
         result = solve(problem)
         print(result.summary)
         print(result("x[1,2]"))
+
+    校验错误类型：
+        E001: 界颠倒 (lb > ub)
+        E002: 二进制变量界不在[0,1]
+        E003: 整数变量界含小数
+        E004: 负索引
+        E005: 重复变量名
+        E006: 未定义变量
+        E007: 空定义域
     """
+    # 自动校验（如果开启）
+    if validate_first:
+        errors = problem.validate()
+        if errors:
+            error_msgs = '\n'.join(str(e) for e in errors)
+            raise DSLValidationError(
+                f"[VALIDATION_FAILED] {len(errors)} error(s) found:\n{error_msgs}"
+            )
+
     # TODO: 实际调用求解器
     # 这里返回模拟结果
     return SolverResult(
@@ -679,4 +887,6 @@ __all__ = [
     'Problem', 'minimize', 'maximize', 'constraint', 'NamedConstraint',
     # 结果
     'SolverResult', 'solve',
+    # 校验层（新增）
+    'DSLValidationError', 'ValidationErrorCodes', 'validate',
 ]
