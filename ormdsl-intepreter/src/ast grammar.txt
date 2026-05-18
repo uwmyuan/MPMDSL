@@ -49,47 +49,101 @@ EquStm::=EquStm Cop Exp
 ObjStm::=min Exp
     |max Exp
     
-//The algebraic IR TBD
-Aop::=PlusIR
-    |MinusIR
-    |TimesIR
-    |DivIR
-    
-Cop::=LessIR
-    |GreaterIR
-    |LessEqIR
-    |GreaterEqIR
-    |EqualIR
-    
-Exp::= AExpIR
-    |PowExpIR
-    |VecElem
-    |Vec
-    |ConstIR
-    |Sum
-    
-AExp::=Exp Aop Exp
+//The algebraic IR (COMPLETE)
+// ==================== Arithmetic Operators ====================
+AopIR ::= PlusIR
+       | MinusIR
+       | TimesIR
+       | DivIR
 
-PowExp::=Exp Double
+// ==================== Comparison Operators ====================
+CopIR ::= LessIR
+       | GreaterIR
+       | LessEqIR
+       | GreaterEqIR
+       | EqualIR
 
-VecElem::=Vec List[Index]
+// ==================== Expressions ====================
+ExpIR ::= ConstIR
+        | VectorElementIR
+        | SumIR
+        | AExpIR
+        | PowExpIR
 
-Index::=String Dim
+ConstIR ::= Double
 
-Dim::=Int String
+VectorElementIR ::= VectorIR "[" IndexIR ("," IndexIR)* "]"
 
-Vec::=InputVar
-    |IntegerVariable
-    |ContinuousVariable
-    |BinaryVar
+SumIR ::= IndexIR ExpIR
 
-Sum::=Index Exp 
+AExpIR ::= ExpIR AopIR ExpIR
 
-FormulaStms::=FormulaStms EquStms
-    |ObjStms EquStms
-    
-EquStms::=EquStms Cop Exp
-    |Exp Cop Exp
-    
-ObjStms::=min Exp
-    |max Exp
+PowExpIR ::= ExpIR Double
+
+// ==================== Vectors ====================
+VectorIR ::= InputVariableIR
+           | DecisionVariableIR
+
+InputVariableIR ::= DoubleNum
+                | IntegerNum
+
+DecisionVariableIR ::= IntegerDecisionVariable
+                     | DoubleDecisionVariable
+                     | BinaryVar
+
+// ==================== Indices ====================
+IndexIR ::= name ":" SetIR
+
+SetIR ::= IntegerSet
+       | DoubleSet
+       | Range(IntegerLiteral, IntegerLiteral)
+
+// ==================== Declarations ====================
+Declaration ::= InputDeclaration
+              | DecisionVariableDeclaration
+              | IndexDeclaration
+
+InputDeclaration ::= DoubleNum
+                   | IntegerNum
+
+DecisionVariableDeclaration ::= IntegerDecisionVariable
+                            | DoubleDecisionVariable
+                            | BinaryVar
+
+// ==================== Constraints ====================
+Constraint ::= SimpleConstraint
+             | QualifiedConstraint
+             | DecisionVariableConstraint
+
+SimpleConstraint ::= name ":" EquationIR
+
+QualifiedConstraint ::= name ":" EquationIR "for" Qualifier
+
+DecisionVariableConstraint ::= name ":" EquationIR "with" DecisionVariable
+
+EquationIR ::= ExpIR CopIR ExpIR
+             | ExpIR CopIR ExpIR CopIR ExpIR  // binary constraint: lb <= x <= ub
+
+// ==================== Qualifiers ====================
+Qualifier ::= SetQualifier
+            | CompoundQualifier
+
+SetQualifier ::= name ":" IndexIR "in" "[" LowerBound "," UpperBound "]"
+
+CompoundQualifier ::= name ":" "{" SetQualifier ("," SetQualifier)* "}"
+
+// ==================== Objective ====================
+ObjectiveIR ::= MinObjectiveIR
+              | MaxObjectiveIR
+
+MinObjectiveIR ::= "min" ExpIR
+
+MaxObjectiveIR ::= "max" ExpIR
+
+// ==================== Formulation ====================
+Formulation ::= FormulaIR
+
+FormulaIR ::= Declarations ObjectiveIR Constraints
+
+Declarations ::= Declaration*
+Constraints ::= Constraint*

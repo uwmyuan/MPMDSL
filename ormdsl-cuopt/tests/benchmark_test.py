@@ -581,6 +581,100 @@ class TestVRPSolver(unittest.TestCase):
 
         print(f"\n[VRPTW 3cust/1veh]  cost={result['total_cost']:.4f}")
 
+    @_skip_no_routing
+    def test_tsp_10_city(self):
+        """
+        TSP  10城市  随机坐标生成，验证所有城市被访问
+        使用固定 seed 保证可重复性
+        """
+        rng = np.random.default_rng(42)
+        n = 10
+        coords = rng.uniform(0, 100, (n, 2))
+        diff = coords[:, None, :] - coords[None, :, :]
+        costs = np.sqrt((diff ** 2).sum(-1))
+
+        solver = VRPSolver(n_locations=n, n_vehicles=1)
+        solver.set_cost_matrix(costs)
+
+        t0 = time.perf_counter()
+        result = solver.solve(max_runtime=60.0)
+        elapsed = time.perf_counter() - t0
+
+        self.assertIn(result["status"], ["optimal", "feasible", "solved"])
+        self.assertGreater(result["total_cost"], 0)
+
+        if result["routes"]:
+            tour = result["routes"][0]
+            visited = set(tour)
+            expected = set(range(1, n))
+            self.assertEqual(visited, expected,
+                             f"Not all cities visited: {tour}")
+
+        print(f"\n[TSP 10-city]  tour_length={result['total_cost']:.4f}  "
+              f"time={elapsed:.4f}s")
+
+    @_skip_no_routing
+    def test_tsp_20_city(self):
+        """
+        TSP  20城市  随机坐标生成，验证所有城市被访问
+        """
+        rng = np.random.default_rng(123)
+        n = 20
+        coords = rng.uniform(0, 100, (n, 2))
+        diff = coords[:, None, :] - coords[None, :, :]
+        costs = np.sqrt((diff ** 2).sum(-1))
+
+        solver = VRPSolver(n_locations=n, n_vehicles=1)
+        solver.set_cost_matrix(costs)
+
+        t0 = time.perf_counter()
+        result = solver.solve(max_runtime=120.0)
+        elapsed = time.perf_counter() - t0
+
+        self.assertIn(result["status"], ["optimal", "feasible", "solved"])
+        self.assertGreater(result["total_cost"], 0)
+
+        if result["routes"]:
+            tour = result["routes"][0]
+            visited = set(tour)
+            expected = set(range(1, n))
+            self.assertEqual(visited, expected,
+                             f"Not all cities visited: {tour}")
+
+        print(f"\n[TSP 20-city]  tour_length={result['total_cost']:.4f}  "
+              f"time={elapsed:.4f}s")
+
+    @_skip_no_routing
+    def test_tsp_50_city(self):
+        """
+        TSP  50城市  大规模测试，验证求解器性能
+        """
+        rng = np.random.default_rng(456)
+        n = 50
+        coords = rng.uniform(0, 100, (n, 2))
+        diff = coords[:, None, :] - coords[None, :, :]
+        costs = np.sqrt((diff ** 2).sum(-1))
+
+        solver = VRPSolver(n_locations=n, n_vehicles=1)
+        solver.set_cost_matrix(costs)
+
+        t0 = time.perf_counter()
+        result = solver.solve(max_runtime=300.0)
+        elapsed = time.perf_counter() - t0
+
+        self.assertIn(result["status"], ["optimal", "feasible", "solved"])
+        self.assertGreater(result["total_cost"], 0)
+
+        if result["routes"]:
+            tour = result["routes"][0]
+            visited = set(tour)
+            expected = set(range(1, n))
+            self.assertEqual(visited, expected,
+                             f"Not all cities visited: {tour}")
+
+        print(f"\n[TSP 50-city]  tour_length={result['total_cost']:.4f}  "
+              f"time={elapsed:.4f}s")
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 4. 性能基准 (仅在 --benchmark 时运行)

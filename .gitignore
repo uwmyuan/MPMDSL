@@ -4,3 +4,7 @@
 .project
 ormdsl-intepreter/ormdsl-intepreter.iml
 out/
+tests/
+*/tests/
+*/__pycache__/
+*.zip
